@@ -15,9 +15,10 @@ class BPLP_PreProcess(object):
         self.train_catorig_file = self.data_path + 'train_categorical.csv'
         self.train_date_file    = self.data_path + 'train_date.csv'
 
-        self.missval = np.iinfo(np.int16).min
+        #self.missval = np.iinfo(np.int16).min
+        self.missval = 0
 
-    def process_categorical(self, nrows_bundle=100000):
+    def convert_categorical_int(self):
         '''
         We remove "T" from the csv file, using int number to identify categories.
         Just a simple sed command to do this job
@@ -28,6 +29,33 @@ class BPLP_PreProcess(object):
 
         if not os.path.isfile(self.train_categorical_file):
             os.system("sed 's/T//g' "+self.train_catorig_file+" > "+self.train_categorical_file)
+
+        self.train_catneg_file = self.data_path + 'train_categorical_negative.csv'
+
+        if not os.path.isfile(self.train_catneg_file):
+            os.system("head -n 1 "+self.train_catorig_file+" > "+self.train_catneg_file)
+            os.system("grep - "+self.train_categorical_file+" >> "+self.train_catneg_file)
+
+    def check_values_categorical(self):
+
+        ## first check negative values ##
+        tmp = pd.read_csv(self.train_catneg_file)
+
+        ## there is no 0 labeled category, so we fill N/A by 0
+        tmp = tmp.fillna(0)
+        
+        print np.unique(tmp[tmp<0].values.astype(np.float64))
+        print np.unique(tmp[tmp>0].values.astype(np.float64))
+
+        '''
+        negative elements
+        [-2147483648 -2147483647 -2147483646 -2147482944 -2147482816 -2147482688
+         -2147482432 -2147482176 -2147481664   -21474872   -21474825   -21474819
+         -18748192]
+        '''
+        
+
+    def process_categorical(self, nrows_bundle=100000):
 
         nrows_skip = 0
         nrows_read = nrows_bundle
@@ -47,7 +75,10 @@ class BPLP_PreProcess(object):
             line_end = line_start + nrows_read - 1
             print "Read "+str(nrows_read)+" lines, from "+str(line_start)+" to "+str(line_end)
 
+
             tmp[tmp < -2147480000] += 2147480000
+            tmp[((tmp > -21474873) & (tmp < 0))] += 21474800
+             
             tmp = tmp.fillna( self.missval )
 
             features = tmp.columns.delete(0) # here remove 'Id' column
